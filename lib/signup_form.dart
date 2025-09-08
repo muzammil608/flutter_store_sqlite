@@ -1,224 +1,144 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 
-class SignupForm extends StatefulWidget {
-  const SignupForm({super.key});
+class SignupPage extends StatefulWidget {
+  const SignupPage({super.key});
 
   @override
-  State<SignupForm> createState() => _SignupFormState();
+  State<SignupPage> createState() => _SignupPageState();
 }
 
-class _SignupFormState extends State<SignupForm> {
-  final _formKey = GlobalKey<FormState>();
+class _SignupPageState extends State<SignupPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+  TextEditingController();
 
-  String message = '';
-  bool isLoading = false;
-
-  final dbHelper = DatabaseHelper();
-
-  Future<void> _handleSignup() async {
-    if (!_formKey.currentState!.validate()) return;
-
+  Future<void> _signup() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    final confirm = _confirmController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
 
-    if (password != confirm) {
-      setState(() => message = "❌ Passwords don't match");
+    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("All fields are required.")));
       return;
     }
-
-    if (password.length < 6) {
-      setState(() => message = "❌ Password must be at least 6 characters");
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Passwords do not match.")));
       return;
     }
-
-    setState(() {
-      isLoading = true;
-      message = '';
-    });
 
     try {
-      final db = await dbHelper.database;
-
-      await db.insert('users', {'email': email, 'password': password});
-
-      setState(() => message = "✅ Account created! Redirecting...");
-
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return;
+      await DatabaseHelper.instance.insertUser(email, password);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Signup successful!")));
       Navigator.pushReplacementNamed(context, '/login');
     } catch (e) {
-      setState(() => message = '❌ ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("User already exists.")));
     }
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // 🔥 Dark background
+      backgroundColor: const Color(0xFF0A0E21),
       body: Center(
-        child: Card(
-          elevation: 10,
-          color: Colors.grey[900], // 🔥 Dark card
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
           child: Container(
-            width: 330,
-            padding: const EdgeInsets.all(25),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Sign Up',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+            width: 360,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  "Create Account",
+                  style: const TextStyle(
+                      fontSize: 22,
+                      color: Colors.tealAccent,
+                      fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
 
-                  // Email
-                  TextFormField(
-                    controller: _emailController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Email',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.grey[850],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Enter email' : null,
-                    enabled: !isLoading,
-                  ),
-                  const SizedBox(height: 12),
+                _styledInput("Email", _emailController, Icons.email),
+                const SizedBox(height: 14),
+                _styledInput("Password", _passwordController, Icons.lock, obscure: true),
+                const SizedBox(height: 14),
+                _styledInput("Confirm Password", _confirmPasswordController, Icons.lock, obscure: true),
+                const SizedBox(height: 20),
 
-                  // Password
-                  TextFormField(
-                    controller: _passwordController,
-                    style: const TextStyle(color: Colors.white),
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      hintText: 'Password',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.grey[850],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (value) => value == null || value.isEmpty
-                        ? 'Enter password'
-                        : null,
-                    enabled: !isLoading,
+                ElevatedButton(
+                  onPressed: _signup,
+                  child: const Text("Signup"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.lightBlueAccent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 60, vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
-                  const SizedBox(height: 12),
+                ),
+                const SizedBox(height: 16),
 
-                  // Confirm Password
-                  TextFormField(
-                    controller: _confirmController,
-                    style: const TextStyle(color: Colors.white),
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      hintText: 'Confirm Password',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.grey[850],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (value) => value == null || value.isEmpty
-                        ? 'Confirm password'
-                        : null,
-                    enabled: !isLoading,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 🔥 Hoverable Button
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: ElevatedButton(
-                      onPressed: isLoading ? null : _handleSignup,
-                      style: ButtonStyle(
-                        backgroundColor: WidgetStateProperty.resolveWith<Color>(
-                          (states) {
-                            if (states.contains(WidgetState.hovered)) {
-                              return Colors.blueAccent; // hover color
-                            }
-                            return Colors.deepPurple; // normal color
-                          },
-                        ),
-                        minimumSize: WidgetStateProperty.all(
-                          const Size.fromHeight(45),
-                        ),
-                        shape: WidgetStateProperty.all(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
+                // Only underline the word "Login"
+                Center(
+                  child: RichText(
+                    text: TextSpan(
+                      text: "Already have an account? ",
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      children: [
+                        TextSpan(
+                          text: "Login",
+                          style: const TextStyle(
+                            color: Colors.lightBlueAccent,
+                            decoration: TextDecoration.underline,
                           ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              Navigator.pushReplacementNamed(context, '/login');
+                            },
                         ),
-                        elevation: WidgetStateProperty.all(6),
-                      ),
-                      child: Text(
-                        isLoading ? 'Creating Account...' : 'Sign Up',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 15),
-
-                  if (message.isNotEmpty)
-                    Text(
-                      message,
-                      style: TextStyle(
-                        color: message.contains('✅')
-                            ? Colors.greenAccent
-                            : Colors.redAccent,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  const SizedBox(height: 12),
-
-                  GestureDetector(
-                    onTap: () =>
-                        Navigator.pushReplacementNamed(context, '/login'),
-                    child: const Text(
-                      "Already have an account? Login",
-                      style: TextStyle(
-                        color: Colors.blueAccent,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _styledInput(String label, TextEditingController controller, IconData icon,
+      {bool obscure = false}) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscure,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: Colors.tealAccent),
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.08),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.tealAccent, width: 2),
         ),
       ),
     );

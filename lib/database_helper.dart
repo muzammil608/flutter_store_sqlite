@@ -2,81 +2,130 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DatabaseHelper {
-  static final DatabaseHelper _instance = DatabaseHelper._internal();
-  factory DatabaseHelper() => _instance;
-  DatabaseHelper._internal();
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
 
-  Database? _database;
+  DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    await _initDb();
+    _database = await _initDB("grocery_app.db");
     return _database!;
   }
 
-  Future<void> _initDb() async {
+  Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'app.db');
+    final path = join(dbPath, filePath);
 
-    _database = await openDatabase(
+    return await openDatabase(
       path,
-      version: 1,
-      onCreate: (db, version) async {
-        // Users table
-        await db.execute('''
-          CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-          )
-        ''');
-
-        // Grocery items table
-        await db.execute('''
-          CREATE TABLE items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            userId INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            quantity INTEGER NOT NULL,
-            price REAL NOT NULL,
-            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-          )
-        ''');
-      },
+      version: 2, // bump version from 1 → 2
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
-  // Insert grocery item
-  Future<int> insertItem(Map<String, dynamic> item) async {
-    final db = await database;
-    return await db.insert('items', item);
+  Future _createDB(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userEmail TEXT NOT NULL,
+        itemName TEXT NOT NULL,
+        quantity TEXT NOT NULL,
+        price REAL NOT NULL,
+        FOREIGN KEY (userEmail) REFERENCES users (email) ON DELETE CASCADE
+      )
+    ''');
   }
 
-  // Get items for specific user
-  Future<List<Map<String, dynamic>>> getItems(int userId) async {
-    final db = await database;
-    return await db.query('items', where: 'userId = ?', whereArgs: [userId]);
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add items table if upgrading from version 1
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          userEmail TEXT NOT NULL,
+          itemName TEXT NOT NULL,
+          quantity TEXT NOT NULL,
+          price REAL NOT NULL,
+          FOREIGN KEY (userEmail) REFERENCES users (email) ON DELETE CASCADE
+        )
+      ''');
+      print("✅ Upgraded DB: items table created");
+    }
   }
 
-  // Update grocery item
-  Future<int> updateItem(Map<String, dynamic> item) async {
-    final db = await database;
+  // ---------------- USERS ----------------
+  Future<int> insertUser(String email, String password) async {
+    final db = await instance.database;
+    return await db.insert('users', {
+      'email': email,
+      'password': password,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  Future<Map<String, dynamic>?> getUser(String email, String password) async {
+    final db = await instance.database;
+    final result = await db.query(
+      'users',
+      where: 'email = ? AND password = ?',
+      whereArgs: [email, password],
+    );
+    if (result.isNotEmpty) return result.first;
+    return null;
+  }
+
+  // ---------------- ITEMS ----------------
+  Future<int> insertItem(
+      String userEmail,
+      String itemName,
+      String quantity,
+      double price,
+      ) async {
+    final db = await instance.database;
+    return await db.insert('items', {
+      'userEmail': userEmail,
+      'itemName': itemName,
+      'quantity': quantity,
+      'price': price,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getItems(String userEmail) async {
+    final db = await instance.database;
+    return await db.query(
+      'items',
+      where: 'userEmail = ?',
+      whereArgs: [userEmail],
+      orderBy: 'id DESC',
+    );
+  }
+
+  Future<int> updateItem(
+      int id,
+      String itemName,
+      String quantity,
+      double price,
+      ) async {
+    final db = await instance.database;
     return await db.update(
       'items',
-      item,
+      {'itemName': itemName, 'quantity': quantity, 'price': price},
       where: 'id = ?',
-      whereArgs: [item['id']],
+      whereArgs: [id],
     );
   }
 
-  // Delete grocery item
   Future<int> deleteItem(int id) async {
-    final db = await database;
+    final db = await instance.database;
     return await db.delete('items', where: 'id = ?', whereArgs: [id]);
-  }
-
-  Future<void> close() async {
-    await _database?.close();
-    _database = null;
   }
 }

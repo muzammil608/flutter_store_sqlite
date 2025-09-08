@@ -1,179 +1,180 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/gestures.dart';
 import 'database_helper.dart';
 
-class LoginForm extends StatefulWidget {
-  const LoginForm({super.key});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
 
   @override
-  State<LoginForm> createState() => _LoginFormState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginFormState extends State<LoginForm> {
-  final _formKey = GlobalKey<FormState>();
+class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  String message = '';
-  bool isLoading = false;
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  final dbHelper = DatabaseHelper();
-
-  Future<void> _handleLogin() async {
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    setState(() {
-      isLoading = true;
-      message = '';
-    });
+    final user = await DatabaseHelper.instance.getUser(email, password);
 
-    try {
-      final db = await dbHelper.database;
-
-      final result = await db.query(
-        'users',
-        where: 'email = ? AND password = ?',
-        whereArgs: [email, password],
+    if (user != null) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        '/dashboard',
+        arguments: {'email': email},
       );
-
-      if (result.isNotEmpty) {
-        final user = result.first;
-
-        // Save session
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('userId', user['id'] as int);
-
-        setState(() => message = "✅ Login successful! Redirecting...");
-        await Future.delayed(const Duration(seconds: 1));
-        if (!mounted) return;
-
-        Navigator.pushReplacementNamed(
-          context,
-          '/dashboard',
-          arguments: {'id': user['id'], 'email': user['email']},
-        );
-      } else {
-        setState(() => message = "❌ Invalid email or password");
-      }
-    } catch (e) {
-      setState(() => message = '❌ ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+    } else {
+      setState(() {
+        _errorMessage = "Invalid email or password";
+      });
     }
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  InputDecoration _inputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      prefixIcon: Icon(icon, color: Colors.tealAccent),
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white70),
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.08),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.tealAccent, width: 2),
+      ),
+    );
+  }
+
+  Widget _styledInput(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    bool obscure = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscure,
+      style: const TextStyle(color: Colors.white),
+      decoration: _inputDecoration(label, icon),
+      validator: (value) =>
+          value == null || value.isEmpty ? "Enter $label" : null,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF0A0E21),
       body: Center(
-        child: Card(
-          elevation: 10,
-          color: Colors.grey[900],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
           child: Container(
-            width: 330,
-            padding: const EdgeInsets.all(25),
+            width: 360,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: Form(
               key: _formKey,
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Login',
+                    "Glad to see you here!",
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 22,
+                      color: Colors.tealAccent,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
                     ),
+                    textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 30),
+
+                  _styledInput("Email", _emailController, Icons.email),
+                  const SizedBox(height: 14),
+                  _styledInput(
+                    "Password",
+                    _passwordController,
+                    Icons.lock,
+                    obscure: true,
+                  ),
+
                   const SizedBox(height: 20),
-
-                  TextFormField(
-                    controller: _emailController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Email',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.grey[850],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Enter email' : null,
-                  ),
-                  const SizedBox(height: 12),
-
-                  TextFormField(
-                    controller: _passwordController,
-                    style: const TextStyle(color: Colors.white),
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      hintText: 'Password',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.grey[850],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (value) => value == null || value.isEmpty
-                        ? 'Enter password'
-                        : null,
-                  ),
-                  const SizedBox(height: 20),
-
-                  ElevatedButton(
-                    onPressed: isLoading ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
-                      minimumSize: const Size.fromHeight(45),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                    ),
-                    child: Text(
-                      isLoading ? 'Logging in...' : 'Login',
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  if (message.isNotEmpty)
+                  if (_errorMessage != null)
                     Text(
-                      message,
-                      style: TextStyle(
-                        color: message.contains('✅')
-                            ? Colors.greenAccent
-                            : Colors.redAccent,
-                      ),
-                      textAlign: TextAlign.center,
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.redAccent),
                     ),
-                  const SizedBox(height: 12),
 
-                  GestureDetector(
-                    onTap: () =>
-                        Navigator.pushReplacementNamed(context, '/signup'),
-                    child: const Text(
-                      "Don't have an account? Sign Up",
-                      style: TextStyle(
-                        color: Colors.blueAccent,
-                        decoration: TextDecoration.underline,
-                      ),
+                  const SizedBox(height: 20),
+                  _isLoading
+                      ? const CircularProgressIndicator(
+                          color: Colors.tealAccent,
+                        )
+                      : ElevatedButton(
+                          onPressed: _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            side: BorderSide.none,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 60,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            "Login",
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.lightBlueAccent,
+                            ),
+                          ),
+                        ),
+
+                  const SizedBox(height: 16),
+                  RichText(
+                    text: TextSpan(
+                      text: "Don’t have an account? ",
+                      style: const TextStyle(color: Colors.white70),
+                      children: [
+                        TextSpan(
+                          text: "Sign up",
+                          style: const TextStyle(
+                            color: Colors.lightBlueAccent,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/signup',
+                              );
+                            },
+                        ),
+                      ],
                     ),
                   ),
                 ],

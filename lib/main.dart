@@ -1,32 +1,40 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'signup_form.dart';
 import 'login_form.dart';
 import 'dashboard.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final userId = prefs.getInt('userId');
-
-  runApp(MyApp(initialRoute: userId == null ? '/login' : '/dashboard'));
+void main() {
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final String initialRoute;
-  const MyApp({super.key, required this.initialRoute});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter SQLite Grocery Store',
+      title: 'Grocery App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.green),
-      initialRoute: initialRoute,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+        primaryColor: Colors.deepPurple,
+      ),
+      initialRoute: '/login',
       routes: {
-        '/signup': (context) => const SignupForm(),
-        '/login': (context) => const LoginForm(),
-        '/dashboard': (context) => const DashboardPage(),
+        '/signup': (context) => const SignupPage(),
+        '/login': (context) => const LoginPage(),
+        '/dashboard': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+
+          // Safely check arguments
+          if (args != null && args is Map<String, dynamic>) {
+            final email = args['email'] as String? ?? "Unknown User";
+            return DashboardPage(userEmail: email);
+          } else {
+            // If no arguments provided, fallback
+            return const DashboardPage(userEmail: "Guest");
+          }
+        },
       },
     );
   }
