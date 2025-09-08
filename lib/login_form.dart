@@ -32,11 +32,8 @@ class _LoginPageState extends State<LoginPage> {
 
     if (user != null) {
       if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        '/dashboard',
-        arguments: {'email': email},
-      );
+      // <-- Changed this line
+      Navigator.pushReplacementNamed(context, '/dashboard', arguments: email);
     } else {
       setState(() {
         _errorMessage = "Invalid email or password";

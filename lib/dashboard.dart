@@ -16,6 +16,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final TextEditingController _priceController = TextEditingController();
 
   List<Map<String, dynamic>> _items = [];
+  int? _editingItemId; // Track if editing an existing item
 
   @override
   void initState() {
@@ -30,19 +31,33 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  Future<void> _addItem() async {
+  Future<void> _addOrUpdateItem() async {
     final name = _itemController.text.trim();
     final qty = _quantityController.text.trim();
     final priceText = _priceController.text.trim();
+
     if (name.isEmpty || qty.isEmpty || priceText.isEmpty) return;
 
     final price = double.tryParse(priceText) ?? 0.0;
-    await DatabaseHelper.instance.insertItem(
-      widget.userEmail,
-      name,
-      qty,
-      price,
-    );
+
+    if (_editingItemId == null) {
+      // Add new item
+      await DatabaseHelper.instance.insertItem(
+        widget.userEmail,
+        name,
+        qty,
+        price,
+      );
+    } else {
+      // Update existing item
+      await DatabaseHelper.instance.updateItem(
+        _editingItemId!,
+        name,
+        qty,
+        price,
+      );
+      _editingItemId = null;
+    }
 
     _itemController.clear();
     _quantityController.clear();
@@ -50,16 +65,16 @@ class _DashboardPageState extends State<DashboardPage> {
     await _loadItems();
   }
 
-  Future<void> _deleteItem(int id) async {
-    await DatabaseHelper.instance.deleteItem(id);
-    await _loadItems();
-  }
-
-  Future<void> _editItem(Map<String, dynamic> item) async {
+  void _editItem(Map<String, dynamic> item) {
     _itemController.text = item['itemName'];
     _quantityController.text = item['quantity'];
     _priceController.text = item['price'].toString();
-    await _deleteItem(item['id']);
+    _editingItemId = item['id'] as int;
+  }
+
+  Future<void> _deleteItem(int id) async {
+    await DatabaseHelper.instance.deleteItem(id);
+    await _loadItems();
   }
 
   @override
@@ -80,7 +95,7 @@ class _DashboardPageState extends State<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  "Welcome to ${widget.userEmail}!",
+                  "Welcome, ${widget.userEmail}!",
                   style: const TextStyle(
                     fontSize: 22,
                     color: Colors.tealAccent,
@@ -108,8 +123,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 const SizedBox(height: 20),
 
                 ElevatedButton(
-                  onPressed: _addItem,
-                  child: const Text("Add Item"),
+                  onPressed: _addOrUpdateItem,
+                  child: Text(
+                    _editingItemId == null ? "Add Item" : "Update Item",
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     foregroundColor: Colors.lightBlueAccent,
@@ -122,8 +139,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
 
+                const SizedBox(height: 30),
                 const Text(
                   "Saved Items",
                   style: TextStyle(
@@ -136,7 +153,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
                 _items.isEmpty
                     ? const Text(
-                        "No items yet. Add something ",
+                        "No items yet. Add something.",
                         style: TextStyle(color: Colors.white54),
                         textAlign: TextAlign.center,
                       )
